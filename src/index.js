@@ -380,9 +380,23 @@ export default {
     }
 
     // 조용한 시간을 무시하고 무조건 발송 (테스트용)
+    // 즉시 발송. ?rate=+20% 처럼 음성 속도를 그때그때 지정해
+    // 어느 속도가 편한지 직접 들어보고 고를 수 있다.
     if (url.pathname === "/send" && isAdmin) {
-      const res = await broadcast(env, cfg, tg);
-      return Response.json({ ok: true, ...res });
+      const rate = url.searchParams.get("rate");
+      const voice = url.searchParams.get("voice");
+      const override = {
+        ...cfg,
+        ...(rate ? { voiceRate: rate } : {}),
+        ...(voice ? { voiceName: voice } : {}),
+      };
+      const res = await broadcast(env, override, tg);
+      return Response.json({
+        ok: true,
+        rate: override.voiceRate,
+        voice: override.voiceName,
+        ...res,
+      });
     }
 
     // 외부 스케줄러가 매시간 호출하는 정기 발송 엔드포인트.

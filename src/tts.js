@@ -140,11 +140,6 @@ async function synthesizeWithEdge(text, { voice, rate, timeoutMs = 12000 }) {
     }
 
     ws.addEventListener("message", (ev) => {
-      console.log(
-        `[edge] frame type=${typeof ev.data} ` +
-          `len=${typeof ev.data === "string" ? ev.data.length : ev.data.byteLength} ` +
-          `head=${typeof ev.data === "string" ? ev.data.slice(0, 80).replace(/\r\n/g, "|") : ""}`,
-      );
       if (typeof ev.data === "string") {
         // 텍스트 프레임: turn.start / turn.end 같은 제어 메시지
         if (ev.data.includes("Path:turn.end")) {
