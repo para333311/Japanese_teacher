@@ -1,0 +1,31 @@
+name: 시간별 일본어 문장 발송
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: hourly-send
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 발송 요청
+        env:
+          WORKER_URL: https://5e5e691f-c7d9-4fa9-8d72-0ba0ed4e3ec3.vip.gensparksite.com
+        run: |
+          set -u
+          code=$(curl -sS -o body.txt -w '%{http_code}' \
+                   --max-time 120 --retry 3 --retry-delay 10 \
+                   "${WORKER_URL}/cron")
+          echo "HTTP ${code}"
+          cat body.txt
+          echo
+          if [ "${code}" != "200" ]; then
+            echo "::error::발송 실패 (HTTP ${code})"
+            exit 1
+          fi
