@@ -1,0 +1,53 @@
+# 매시간 일본어 한 문장 발송 트리거
+#
+# 이 호스팅 환경(Cloudflare Workers for Platform)은 Workers 의 Cron 트리거를
+# 지원하지 않는다. 그래서 외부에서 매시간 Worker 의 /cron 을 깨워준다.
+#
+# 사용법
+#   1. 이 파일을 저장소의 .github/workflows/hourly-send.yml 로 복사한다.
+#   2. 커밋 & 푸시하면 끝. 설정할 Secret 은 없다.
+#
+# 안전성
+#   /cron 은 sent_slots 테이블로 시간 슬롯을 선점하므로, 몇 번 호출되든
+#   한 시간에 최대 한 문장만 발송된다. 중복 실행을 걱정할 필요가 없다.
+#
+# 참고
+#   GitHub 의 무료 스케줄러는 혼잡할 때 수 분에서 수십 분 늦게 실행될 수
+#   있다. 정확한 정시 발송이 필요하면 cron-job.org 같은 전용 서비스에
+#   아래 URL 을 등록하는 편이 낫다.
+
+name: 시간별 일본어 문장 발송
+
+on:
+  schedule:
+    # 매시 정각 (UTC 기준이지만 매시간이라 시간대 영향 없음)
+    - cron: "0 * * * *"
+  # 저장소 Actions 탭에서 수동 실행도 가능
+  workflow_dispatch:
+
+# 앞선 실행이 밀려 있으면 겹쳐 돌리지 않는다
+concurrency:
+  group: hourly-send
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 발송 요청
+        env:
+          # 배포된 Worker 주소. 재배포로 주소가 바뀌면 이 값만 고치면 된다.
+          WORKER_URL: https://5e5e691f-c7d9-4fa9-8d72-0ba0ed4e3ec3.vip.gensparksite.com
+        run: |
+          set -u
+          code=$(curl -sS -o body.txt -w '%{http_code}' \
+                   --max-time 120 --retry 3 --retry-delay 10 \
+                   "${WORKER_URL}/cron")
+          echo "HTTP ${code}"
+          cat body.txt
+          echo
+          if [ "${code}" != "200" ]; then
+            echo "::error::발송 실패 (HTTP ${code})"
+            exit 1
+          fi
