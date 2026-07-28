@@ -15,9 +15,13 @@ Cloudflare Workers에서 서버리스로 동작하므로 **PC를 켜둘 필요�
 💬 자리 있나요?
 📍 식당·카페 입구
 
-💡 '세키'는 자리. 인원수는 손가락으로 표시하면 됩니다.
+🧩 끊어서 보기
+· 세키 — 자리
+· 와 — ~은/는
+· 아리마스 — 있습니다
+· 카 — ~까?
 
-👉 소리 내서 3번 따라 해보세요.
+💡 '세키'는 자리. 인원수는 손가락으로 표시하면 됩니다.
 
 📈 1/100문장 (1%) · 1회차
 ```
@@ -30,11 +34,13 @@ Cloudflare Workers에서 서버리스로 동작하므로 **PC를 켜둘 필요�
 ## 특징
 
 - **한글 발음 병기** — 일본어 문자를 몰라도 바로 따라 읽을 수 있음
+- **낱말 끊어 보기** — 문장을 조각내 뜻을 하나씩 보여줘서 응용이 가능함
+  (예: `오카와리 쿠다사이` → `오`(높임) + `카와리`(한 그릇 더) + `쿠다사이`(주세요))
 - **발음 음성 첨부** — 뉴럴 원어민 발음, 말하기 속도 조정 가능 (API 키 불필요)
 - **중복 없는 순환 출제** — 100문장을 다 볼 때까지 같은 문장이 안 나옴
 - **진도 영구 저장** — D1 데이터베이스에 기록되어 언제든 이어서 학습
 - **조용한 시간** — 자는 동안(기본 0~7시)은 알림을 보내지 않음
-- **24시간 자동 실행** — 외부 스케줄러가 매시 정각에 발송 엔드포인트를 호출
+- **24시간 자동 실행** — Cloudflare Cron 트리거가 매시 정각에 워커를 깨움
 - **중복 발송 방지** — 같은 시간대에 여러 번 호출돼도 딱 한 번만 발송
 - **밀린 문장 따라잡기** — 스케줄러가 멈춰도 봇에 말을 걸면 그 시점에 발송
 
@@ -54,7 +60,7 @@ Cloudflare Workers에서 서버리스로 동작하므로 **PC를 켜둘 필요�
 
 ```
 텔레그램 ──웹훅──▶ POST /webhook  → 명령어 즉시 응답
-외부 스케줄러 ───▶ GET  /cron     → 정기 발송
+Cron 트리거 ─────▶ scheduled()   → 정기 발송
 (매시 정각)               │
                           ▼
                 D1 (구독자 · 진도 · 발송슬롯)
@@ -63,16 +69,19 @@ Cloudflare Workers에서 서버리스로 동작하므로 **PC를 켜둘 필요�
 일반 서버처럼 상시 실행되지 않고, **요청이 있을 때만 깨어나는** 방식이라
 무료 한도 안에서 넉넉하게 동작합니다.
 
-### 정기 발송은 왜 외부 스케줄러인가
+### 정기 발송은 Cloudflare Cron 트리거
 
-Cloudflare Workers 자체에는 Cron 트리거가 있지만, **이 봇이 올라간
-Workers for Platform 호스팅 환경은 Cron 트리거를 지원하지 않습니다.**
-`wrangler.jsonc` 에 `triggers.crons` 를 넣어도 조용히 무시되어, 웹훅 명령어는
-동작하는데 정기 발송만 안 되는 상태가 됩니다.
+`wrangler.jsonc` 의 `triggers.crons` 에 매시 정각(`0 * * * *`)이 걸려 있고,
+Cloudflare 가 그 시각에 워커의 `scheduled` 핸들러를 직접 깨웁니다.
+외부 스케줄러가 필요 없습니다.
 
-그래서 외부에서 매시간 `GET /cron` 을 호출하는 방식으로 처리합니다.
-(`triggers.crons` 설정은 Cron을 지원하는 환경에 직접 배포할 경우를 위해
-그대로 남겨두었습니다.)
+> 예전에는 외부 스케줄러(GitHub Actions)로 매시간 `GET /cron` 을 때렸습니다.
+> 당시 호스팅이 **Workers for Platforms** 환경이라 Cron 트리거가 조용히
+> 무시됐기 때문입니다. 자기 Cloudflare 계정에 직접 배포하는 지금은
+> Cron 트리거가 정상 동작하므로 그 우회를 걷어냈습니다.
+
+`GET /cron` 경로는 그대로 남아 있어, 수동으로 한 번 발송을 밀어 넣거나
+외부 스케줄러를 추가로 붙이고 싶을 때 쓸 수 있습니다.
 
 중복 발송은 워커가 막습니다. `/cron` 은 먼저 현재 시간 슬롯
 (`YYYY-MM-DD-HH`, KST 기준)을 `sent_slots` 테이블에 선점(`PRIMARY KEY`)하고,
@@ -98,20 +107,9 @@ Workers for Platform 호스팅 환경은 Cron 트리거를 지원하지 않습�
 `/status`, `/send` 등 상태를 읽거나 강제 발송하는 엔드포인트는 그대로
 `ADMIN_KEY` 로 보호됩니다.
 
-#### 스케줄러 붙이는 방법 (둘 중 하나)
-
-**A. GitHub Actions** — `deploy/github-actions-hourly-send.yml` 을
-`.github/workflows/hourly-send.yml` 로 복사해 커밋하면 끝입니다.
-등록할 Secret 은 없습니다. 무료지만 실행 시각이 수 분~수십 분 밀릴 수 있고,
-저장소가 60일간 활동이 없으면 자동 비활성화됩니다.
-
-**B. 외부 크론 서비스** ([cron-job.org](https://cron-job.org) 등) —
-`https://<워커주소>/cron` 을 등록하고 주기를 매시 정각으로 두면 됩니다.
-정시성이 더 정확합니다.
-
 ### 스케줄러가 멈춰도 되는 안전망
 
-스케줄러는 언제든 멈출 수 있습니다(GitHub Actions 자동 비활성화, 서비스 장애 등).
+Cron 이 밀리거나 거를 수 있습니다.
 그래서 **봇에게 아무 메시지나 보내면** 이번 시간 몫이 아직 안 나갔는지 확인하고
 밀려 있으면 바로 발송합니다.
 
@@ -135,37 +133,49 @@ Workers for Platform 호스팅 환경은 Cron 트리거를 지원하지 않습�
 ├── data/phrases.json # 문장 원본 100개
 ├── migrations/       # D1 스키마 (0001 초기, 0002 발송슬롯)
 ├── scripts/          # 문장 변환 스크립트
-├── deploy/           # 외부 스케줄러 설정 예시
+├── .github/workflows/deploy.yml  # 자동 배포
 └── wrangler.jsonc    # Worker 설정
 ```
 
 ## 배포 방법
 
-### 1. 봇 만들기
-텔레그램 [@BotFather](https://t.me/BotFather) 에서 `/newbot` 으로 봇을 만들고 토큰을 받습니다.
+**GitHub 에 코드가 올라가면 자동으로 배포됩니다.**
+`main` 브랜치에 푸시하면 `.github/workflows/deploy.yml` 이
+D1 생성 → 스키마 적용 → 배포 → 시크릿 등록 → 웹훅 재등록까지 전부 처리합니다.
+터미널도, 로컬 설치도 필요 없습니다.
 
-### 2. 시크릿 설정
-| 이름 | 설명 |
-|------|------|
-| `TELEGRAM_BOT_TOKEN` | BotFather에서 받은 토큰 |
-| `WEBHOOK_SECRET` | 웹훅 위조 방지용 임의 문자열 |
-| `ADMIN_KEY` | 관리 엔드포인트 접근용 임의 문자열 |
+처음 한 번만 아래 준비가 필요합니다.
 
-### 3. 배포 및 웹훅 등록
-배포 후 아래 주소를 한 번 열면 웹훅이 등록됩니다.
-```
-https://<워커주소>/setup?key=<ADMIN_KEY>
-```
+### 1. 봇 토큰 받기
+텔레그램 [@BotFather](https://t.me/BotFather) 에서 `/newbot` 으로 봇을 만들고
+토큰을 받습니다. 이미 봇이 있으면 `/mybots` → 해당 봇 → *API Token* 에서 확인합니다.
 
-### 4. 봇에게 /start
+### 2. Cloudflare API 토큰 만들기
+[dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+→ **Create Token** → **Edit Cloudflare Workers** 템플릿 사용.
+생성된 토큰 문자열을 복사해 둡니다(다시 볼 수 없습니다).
+
+### 3. GitHub Secrets 등록
+저장소 **Settings → Secrets and variables → Actions → New repository secret**
+에서 아래 4개를 등록합니다.
+
+| 이름 | 값 |
+|------|-----|
+| `CLOUDFLARE_API_TOKEN` | 2번에서 만든 토큰 |
+| `TELEGRAM_BOT_TOKEN` | 1번에서 받은 봇 토큰 |
+| `WEBHOOK_SECRET` | 아무 임의 문자열 (웹훅 위조 방지용) |
+| `ADMIN_KEY` | 아무 임의 문자열 (관리 엔드포인트 접근용) |
+
+### 4. 배포 실행
+**Actions** 탭 → *Cloudflare 배포* → **Run workflow** 를 누릅니다.
+(이후로는 `main` 에 푸시할 때마다 자동 실행됩니다.)
+
+성공하면 실행 요약에 워커 주소(`https://....workers.dev`)가 표시됩니다.
+웹훅 등록까지 워크플로가 끝내므로 따로 `/setup` 을 열 필요가 없습니다.
+
+### 5. 봇에게 /start
 텔레그램에서 봇을 찾아 `/start` 를 보내면 등록 완료입니다.
-
-### 5. 스케줄러 연결 (이걸 해야 정시에 옵니다)
-위 [정기 발송은 왜 외부 스케줄러인가](#정기-발송은-왜-외부-스케줄러인가) 를 참고해
-GitHub Actions 또는 외부 크론 서비스에 `https://<워커주소>/cron` 을 등록합니다.
-
-이 단계를 빼먹어도 봇에 말을 걸면 밀린 문장이 따라오지만, **가만히 있어도 알아서
-오게 하려면** 스케줄러를 붙여야 합니다.
+이후 매시 정각에 Cloudflare Cron 트리거가 문장을 보냅니다.
 
 ## 관리 엔드포인트
 
@@ -201,8 +211,8 @@ GitHub Actions 또는 외부 크론 서비스에 `https://<워커주소>/cron` �
 | `VOICE_RATE` | `+0%` | 말하기 속도. `+0%` 가 원어민 보통 속도 |
 | `VOICE_NAME` | `ja-JP-NanamiNeural` | 성우 (남성은 `ja-JP-KeitaNeural`) |
 
-> 실제 발송 주기는 **외부 스케줄러의 호출 주기**로 정해집니다.
-> 예) 2시간마다 → 스케줄러 cron을 `"0 */2 * * *"` 로 변경.
+> 실제 발송 주기는 `wrangler.jsonc` 의 **`triggers.crons`** 로 정해집니다.
+> 예) 2시간마다 → `"0 */2 * * *"` 로 바꾼 뒤 배포.
 > `INTERVAL_HOURS` 는 안내 문구 표시용일 뿐 실제 주기를 바꾸지 않습니다.
 
 ## 문장 추가하기
@@ -216,6 +226,10 @@ GitHub Actions 또는 외부 크론 서비스에 `https://<워커주소>/cron` �
   "ko": "감사합니다.",
   "scene": "고마울 때 어디서나",
   "tip": "'토-'를 길게. 친구끼리는 '아리가토'만 해도 됩니다.",
+  "parts": [
+    { "kr": "아리가토-", "ko": "고마워" },
+    { "kr": "고자이마스", "ko": "정중하게 만들어 주는 말" }
+  ],
   "level": 1
 }
 ```
@@ -226,6 +240,8 @@ npm run build:phrases   # data/phrases.json → src/phrases.js
 
 - `jp` 는 화면에 안 나와도 **음성 생성에 쓰이므로 반드시** 채워야 합니다.
 - `kr_read` 의 `-` 는 장음(길게 늘이는 소리)을 뜻합니다.
+- `parts` 는 선택 항목입니다. 조각들의 `kr` 을 이어붙이면 `kr_read` 와
+  같아지도록 쪼개면 눈이 발음을 따라가기 쉽습니다. 없으면 그 블록만 빠집니다.
 
 ## 로컬 개발
 
