@@ -23,8 +23,23 @@ export function progressBar(done, total) {
 }
 
 /**
+ * 낱말 쪼개기 블록.
+ *
+ * '오카와리 쿠다사이'처럼 통째로 외우면 응용이 안 되므로
+ * '오카와리(한 그릇 더) + 쿠다사이(주세요)'로 끊어서 보여준다.
+ */
+export function formatParts(parts) {
+  if (!Array.isArray(parts) || parts.length === 0) return [];
+  const L = ["🧩 <b>끊어서 보기</b>"];
+  for (const x of parts) {
+    L.push(`· <b>${esc(x.kr)}</b> — ${esc(x.ko)}`);
+  }
+  return L;
+}
+
+/**
  * 한 문장 학습 메시지.
- * 핵심 순서: 한글 발음(제일 위) → 뜻 → 상황 → 팁
+ * 핵심 순서: 한글 발음(제일 위) → 뜻 → 낱말 쪼개기 → 상황 → 팁
  */
 export function formatLesson(p, { showJapanese = false, progress = null } = {}) {
   const L = [];
@@ -32,9 +47,12 @@ export function formatLesson(p, { showJapanese = false, progress = null } = {}) 
   L.push(`🗣 <b>${esc(p.kr)}</b>`, "");
   L.push(`💬 ${esc(p.ko)}`);
   if (p.scene) L.push(`📍 ${esc(p.scene)}`);
+
+  const partLines = formatParts(p.parts);
+  if (partLines.length) L.push("", ...partLines);
+
   if (p.tip) L.push("", `💡 ${esc(p.tip)}`);
   if (showJapanese) L.push("", `<i>${esc(p.jp)}</i>`);
-  L.push("", "👉 <b>소리 내서 3번 따라 해보세요.</b>");
 
   if (progress) {
     const { done, total, round } = progress;
