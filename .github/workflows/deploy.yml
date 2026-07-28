@@ -55,6 +55,10 @@ jobs:
         id: d1
         run: |
           set -euo pipefail
+          # D1 권한이 없는 토큰이면 여기서 code 10000 으로 막힌다.
+          # "Edit Cloudflare Workers" 템플릿에는 D1 권한이 포함되지 않으므로
+          # 토큰에 Account → D1 → Edit 을 직접 추가해야 한다.
+          trap 'echo "::error::D1 접근 실패. CLOUDFLARE_API_TOKEN 에 Account → D1 → Edit 권한이 있는지 확인하세요."' ERR
           if ! npx wrangler d1 list --json | jq -e --arg n "$DB_NAME" '.[] | select(.name==$n)' > /dev/null; then
             echo "D1 데이터베이스가 없어 새로 만듭니다: $DB_NAME"
             npx wrangler d1 create "$DB_NAME"
