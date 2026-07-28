@@ -506,6 +506,36 @@ export default {
     }
 
     // 조용한 시간을 무시하고 무조건 발송 (테스트용)
+    // 특정 수신처만 끄기/켜기. 채널로 옮긴 뒤 개인 알림을 정리할 때 쓴다.
+    //   /unsubscribe?key=...&chat_id=123456   개인 알림 끄기
+    //   /unsubscribe?key=...&chat_id=123456&on=1   다시 켜기
+    if (url.pathname === "/unsubscribe") {
+      if (!isAdmin) return new Response("forbidden", { status: 403 });
+
+      const chatId = url.searchParams.get("chat_id");
+      if (!chatId) {
+        return Response.json(
+          { ok: false, error: "chat_id 가 필요합니다." },
+          { status: 400 },
+        );
+      }
+
+      const turnOn = url.searchParams.get("on") === "1";
+      if (turnOn) {
+        await addSubscriber(env.DB, chatId);
+      } else {
+        await removeSubscriber(env.DB, chatId);
+      }
+
+      const remaining = await listSubscribers(env.DB);
+      return Response.json({
+        ok: true,
+        chat_id: chatId,
+        active: turnOn,
+        remaining: remaining.length,
+      });
+    }
+
     // 즉시 발송. ?rate=+20% 처럼 음성 속도를 그때그때 지정해
     // 어느 속도가 편한지 직접 들어보고 고를 수 있다.
     if (url.pathname === "/send" && isAdmin) {
