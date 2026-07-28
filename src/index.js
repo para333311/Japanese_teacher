@@ -266,14 +266,45 @@ async function markSlotConsumed(env, cfg) {
 }
 
 async function handleUpdate(env, cfg, tg, update) {
-  const msg = update.message || update.edited_message;
+  // 봇이 채널·그룹에 추가되거나 제거될 때 구독을 자동으로 맞춘다.
+  // 채널에서는 /start 를 입력할 수 없으므로 이 경로가 유일한 자동 등록 수단이다.
+  if (update.my_chat_member) {
+    const { chat, new_chat_member: member } = update.my_chat_member;
+    const status = member?.status;
+    const chatId = chat?.id;
+    if (!chatId) return;
+
+    if (status === "administrator" || status === "member") {
+      const isNew = await addSubscriber(env.DB, chatId);
+      console.log(`채팅 등록 [${chatId}] ${chat.title || ""} (${status})`);
+      if (isNew) {
+        await tg.sendMessage(
+          chatId,
+          "✅ 여기로 일본어 문장을 보내겠습니다.\n" +
+            "1시간마다 한 문장씩 올라갑니다.",
+        );
+      }
+    } else if (status === "left" || status === "kicked") {
+      await removeSubscriber(env.DB, chatId);
+      console.log(`채팅 해제 [${chatId}] (${status})`);
+    }
+    return;
+  }
+
+  // 채널 글은 message 가 아니라 channel_post 로 들어온다
+  const msg =
+    update.message ||
+    update.edited_message ||
+    update.channel_post ||
+    update.edited_channel_post;
   if (!msg) return;
 
   const chatId = msg.chat?.id;
   const text = (msg.text || "").trim();
   if (!chatId || !text) return;
 
-  console.log(`수신 [${chatId}]: ${text}`);
+  const isChannel = msg.chat?.type === "channel";
+  console.log(`수신 [${chatId}]${isChannel ? "(채널)" : ""}: ${text}`);
 
   // 말을 건 사람은 어떤 메시지든 자동 등록해서 /start 를 놓쳐도 받을 수 있게 한다
   await addSubscriber(env.DB, chatId);
@@ -282,7 +313,8 @@ async function handleUpdate(env, cfg, tg, update) {
 
   if (text.startsWith("/")) {
     await handleCommand(env, cfg, tg, chatId, text);
-  } else {
+  } else if (!isChannel) {
+    // 채널에서는 사람이 쓴 글마다 안내를 붙이면 방해가 되므로 조용히 넘어간다
     await tg.sendMessage(
       chatId,
       "👋 문장을 받으려면 /now,\n도움말은 /help 를 눌러주세요.",
@@ -363,12 +395,32 @@ export default {
         listSubscribers(env.DB),
         getProgress(env.DB),
       ]);
+      // 각 수신처가 채널인지 개인 대화인지 보여준다.
+      // 채널로 옮긴 뒤 개인 알림이 남아 있는지 한눈에 확인하기 위함이다.
+      const targets = await Promise.all(
+        subs.map(async (id) => {
+          try {
+            const chat = await tg.getChat(id);
+            const kind =
+              chat.type === "channel"
+                ? "채널"
+                : chat.type === "private"
+                  ? "개인"
+                  : chat.type;
+            return { chat_id: String(id), kind, title: chat.title || chat.username || "" };
+          } catch (e) {
+            return { chat_id: String(id), kind: "확인불가", error: e.description || e.message };
+          }
+        }),
+      );
+
       return Response.json({
         bot: me.username,
         webhook_url: hook.url,
         pending_updates: hook.pending_update_count,
         last_error: hook.last_error_message || null,
         subscribers: subs.length,
+        targets,
         progress: `${prog.seen.size}/${TOTAL} (${prog.round}회차)`,
         interval_hours: cfg.intervalHours,
         quiet: cfg.quietEnabled
@@ -377,6 +429,80 @@ export default {
         now_hour_kst: hourInTimezone(cfg.tz),
         send_voice: cfg.sendVoice,
       });
+    }
+
+    // 발송 대상 관리.
+    //   GET /subs                    → 현재 대상 목록 (제목·유형 포함)
+    //   GET /subs?add=@채널이름      → 대상 추가
+    //   GET /subs?remove=<chat_id>   → 대상 제거 (알림 끄기)
+    //   GET /subs?only=<chat_id>     → 이것만 남기고 나머지 전부 해제
+    if (url.pathname === "/subs") {
+      if (!isAdmin) return new Response("forbidden", { status: 403 });
+
+      const add = url.searchParams.get("add");
+      const remove = url.searchParams.get("remove");
+      const only = url.searchParams.get("only");
+      const actions = [];
+
+      if (add) {
+        // 채널 이름(@name)이든 숫자 id 든 getChat 으로 실체를 확인한 뒤 등록한다.
+        try {
+          const chat = await tg.getChat(add);
+          await addSubscriber(env.DB, chat.id);
+          actions.push({
+            added: String(chat.id),
+            title: chat.title || chat.username || null,
+            type: chat.type,
+          });
+        } catch (e) {
+          return Response.json(
+            {
+              ok: false,
+              error: `추가 실패: ${e.message}`,
+              hint: "채널에 봇을 관리자로 초대했는지, 이름을 @포함해 정확히 넣었는지 확인해주세요.",
+            },
+            { status: 400 },
+          );
+        }
+      }
+
+      if (remove) {
+        await removeSubscriber(env.DB, remove);
+        actions.push({ removed: String(remove) });
+      }
+
+      if (only) {
+        // 지정한 대상만 남긴다. 오타로 전체가 꺼지는 걸 막기 위해
+        // 먼저 대상을 등록해 두고, 그 외를 해제한다.
+        await addSubscriber(env.DB, only);
+        const current = await listSubscribers(env.DB);
+        for (const id of current) {
+          if (String(id) !== String(only)) {
+            await removeSubscriber(env.DB, id);
+            actions.push({ removed: String(id) });
+          }
+        }
+        actions.push({ kept: String(only) });
+      }
+
+      // 남은 대상들의 실제 정보를 붙여서 돌려준다
+      const ids = await listSubscribers(env.DB);
+      const targets = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const c = await tg.getChat(id);
+            return {
+              chat_id: String(id),
+              type: c.type,
+              title: c.title || c.username || c.first_name || null,
+            };
+          } catch (e) {
+            return { chat_id: String(id), error: e.message };
+          }
+        }),
+      );
+
+      return Response.json({ ok: true, actions, count: ids.length, targets });
     }
 
     // 조용한 시간을 무시하고 무조건 발송 (테스트용)

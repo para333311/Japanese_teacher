@@ -71,9 +71,16 @@ export class Telegram {
     return this.call("setWebhook", {
       url,
       secret_token: secretToken,
-      allowed_updates: ["message"],
+      // channel_post 를 받아야 채널에 쓴 글에도 반응할 수 있다.
+      // (채널 글은 message 가 아니라 channel_post 로 들어온다)
+      allowed_updates: ["message", "channel_post", "my_chat_member"],
       drop_pending_updates: false,
     });
+  }
+
+  /** 채팅 정보 조회 (채널 제목·유형 확인용) */
+  getChat(chatId) {
+    return this.call("getChat", { chat_id: String(chatId) });
   }
 
   deleteWebhook() {
