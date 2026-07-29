@@ -27,12 +27,18 @@ export function progressBar(done, total) {
  *
  * '오카와리 쿠다사이'처럼 통째로 외우면 응용이 안 되므로
  * '오카와리(한 그릇 더) + 쿠다사이(주세요)'로 끊어서 보여준다.
+ *
+ * 표기 우선순위는 한글 발음이다. 일본어 글자는 못 읽어도 학습에 지장이
+ * 없어야 하므로 굵게 쓰지 않고 괄호 안 보조 표기로만 덧붙인다.
+ *
+ *   · <b>코레</b>(これ) — 이거
  */
 export function formatParts(parts) {
   if (!Array.isArray(parts) || parts.length === 0) return [];
   const L = ["🧩 <b>끊어서 보기</b>"];
   for (const x of parts) {
-    L.push(`· <b>${esc(x.kr)}</b> — ${esc(x.ko)}`);
+    const jp = x.jp ? `(${esc(x.jp)})` : "";
+    L.push(`· <b>${esc(x.kr)}</b>${jp} — ${esc(x.ko)}`);
   }
   return L;
 }
