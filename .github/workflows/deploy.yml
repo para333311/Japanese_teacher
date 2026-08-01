@@ -105,30 +105,37 @@ jobs:
           printf '%s' "$AK" | npx wrangler secret put ADMIN_KEY
 
       # 배포 후 텔레그램 웹훅을 새 주소로 다시 걸어준다.
-      # ADMIN_KEY 는 --data-urlencode 로 넘겨 특수문자가 있어도 안전하게 만든다.
       #
-      # 방금 전 단계에서 올린 시크릿(ADMIN_KEY)이 워커에 반영되기까지
-      # Cloudflare 쪽에 짧은 전파 지연이 있어, 곧바로 호출하면 이전 값
-      # 기준으로 403(forbidden)이 날 수 있다. 그래서 몇 초 간격으로 재시도한다.
+      # 우리 워커의 /setup(ADMIN_KEY 로 보호됨)을 거치지 않고 텔레그램
+      # API 를 CI 에서 직접 호출한다. 방금 전 단계에서 올린 ADMIN_KEY 가
+      # 워커에 반영되기까지 Cloudflare 쪽에 전파 지연이 있어서, 곧바로
+      # /setup 을 부르면 이전 값 기준으로 403 이 나는 경우가 있었다.
+      # TELEGRAM_BOT_TOKEN 은 이번에 새로 바뀌는 값이 아니라 이 문제가 없다.
       - name: 웹훅 등록
         if: steps.publish.outputs.worker_url != ''
         env:
-          AK: ${{ secrets.ADMIN_KEY }}
+          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          WH: ${{ secrets.WEBHOOK_SECRET }}
           WORKER_URL: ${{ steps.publish.outputs.worker_url }}
         run: |
           set -euo pipefail
-          for attempt in 1 2 3 4 5; do
-            if curl -sS --fail-with-body --max-time 60 -G \
-                --data-urlencode "key=$AK" \
-                "$WORKER_URL/setup"; then
-              echo
-              exit 0
-            fi
-            echo "웹훅 등록 재시도 (${attempt}/5)..."
-            sleep 5
-          done
-          echo "::error::웹훅 등록이 재시도 후에도 실패했습니다."
-          exit 1
+          curl -sS --fail-with-body --max-time 60 \
+            --data-urlencode "url=${WORKER_URL}/webhook" \
+            --data-urlencode "secret_token=$WH" \
+            --data-urlencode 'allowed_updates=["message","channel_post","my_chat_member"]' \
+            "https://api.telegram.org/bot${TG}/setWebhook"
+          echo
+          curl -sS --fail-with-body --max-time 60 \
+            --data-urlencode 'commands=[
+              {"command":"now","description":"지금 바로 한 문장 받기"},
+              {"command":"again","description":"아무 문장 하나 더"},
+              {"command":"stats","description":"학습 진도 보기"},
+              {"command":"reset","description":"진도 초기화"},
+              {"command":"stop","description":"정기 발송 중지"},
+              {"command":"help","description":"도움말"}
+            ]' \
+            "https://api.telegram.org/bot${TG}/setMyCommands"
+          echo
 
       - name: 배포 결과 요약
         if: always()
