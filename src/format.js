@@ -68,18 +68,28 @@ export function formatLesson(p, { showJapanese = false, progress = null } = {}) 
 }
 
 /**
- * 한자 단어 학습 메시지.
+ * 단어 학습 메시지.
  *
- * 같은 한자라도 한국·일본에서 뜻이 달라지는 단어들(예: 会計, 人参)을
- * 모아, 두 나라 의미를 나란히 대조해서 보여준다.
+ * 두 가지 형태를 함께 다룬다.
+ *   비교형 — 같은 한자라도 한국·일본에서 뜻이 달라지는 단어(会計, 人参 등).
+ *            jpMeaning 이 있으면 이쪽으로 판단해 두 나라 뜻을 나란히 보여준다.
+ *   일반형 — 공항·숙소·식당처럼 생활·여행에 바로 쓰는 어휘. 뜻 하나와
+ *            상황(scene)을 보여준다.
  */
 export function formatWord(w, { progress = null } = {}) {
+  const isCompare = Boolean(w.jpMeaning);
   const L = [];
-  L.push("🈺 <b>한자 단어</b>", "");
+  L.push(isCompare ? "🈺 <b>한자 단어</b>" : "📖 <b>오늘의 단어</b>", "");
   L.push(`<b>${esc(w.kanji)}</b>`, "");
   L.push(`🗣 ${esc(w.koReading)} / ${esc(w.kr)}`, "");
-  L.push(`🇰🇷 한국 — ${esc(w.koMeaning)}`);
-  L.push(`🇯🇵 일본 — ${esc(w.jpMeaning)}`);
+
+  if (isCompare) {
+    L.push(`🇰🇷 한국 — ${esc(w.koMeaning)}`);
+    L.push(`🇯🇵 일본 — ${esc(w.jpMeaning)}`);
+  } else {
+    L.push(`💬 ${esc(w.meaning)}`);
+    if (w.scene) L.push(`📍 ${esc(w.scene)}`);
+  }
 
   if (progress) {
     const { done, total, round } = progress;

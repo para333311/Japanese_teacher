@@ -131,7 +131,7 @@ async function sendContent(tg, cfg, chatId, kind, content, progress) {
     if (mp3) {
       const label = kind === "word" ? content.kanji : content.kr;
       try {
-        await tg.sendAudio(chatId, mp3, { caption: `🔊 ${label}`, title: label });
+        await tg.sendDocument(chatId, mp3, { caption: `🔊 ${label}` });
       } catch (e) {
         console.warn(`음성 전송 실패(텍스트는 전송됨): ${e.message}`);
       }

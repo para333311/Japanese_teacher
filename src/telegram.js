@@ -42,60 +42,35 @@ export class Telegram {
     });
   }
 
-  /** 음성은 multipart 로 보내야 해서 FormData 사용 */
-  async sendVoice(chatId, mp3Bytes, caption = "") {
-    const form = new FormData();
-    form.append("chat_id", String(chatId));
-    if (caption) {
-      form.append("caption", caption);
-      form.append("parse_mode", "HTML");
-    }
-    form.append(
-      "voice",
-      new Blob([mp3Bytes], { type: "audio/mpeg" }),
-      "pron.mp3",
-    );
-
-    const res = await fetch(`${this.base}/sendVoice`, {
-      method: "POST",
-      body: form,
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!body.ok) {
-      throw new Error(`sendVoice 실패: ${body.description || res.status}`);
-    }
-    return body.result;
-  }
-
   /**
    * 발음 음성 전송.
    *
-   * sendVoice(둥근 파형 말풍선)는 텔레그램 클라이언트가 한 채팅 안의
-   * 음성 메시지들을 하나의 재생목록으로 묶어, 중간 메시지를 눌러도
-   * 이어서 그 뒤의 메시지까지 자동 재생해버린다. sendAudio(일반 오디오
-   * 플레이어)는 이 자동 이어재생 대상이 아니라서 누른 것만 재생된다.
+   * sendVoice(파형 말풍선)와 sendAudio(오디오 플레이어) 둘 다 텔레그램이
+   * 같은 채팅의 재생 가능한 미디어를 하나의 재생목록으로 묶어서, 중간
+   * 메시지를 눌러도 그 뒤의 관련 없는 메시지까지 이어 재생해버린다
+   * (실사용 확인 결과 sendAudio 도 동일 현상). 일반 파일(document)로
+   * 보내면 이 재생목록 대상이 아니라서 누른 것만 재생된다.
    */
-  async sendAudio(chatId, mp3Bytes, { caption = "", title = "" } = {}) {
+  async sendDocument(chatId, mp3Bytes, { caption = "" } = {}) {
     const form = new FormData();
     form.append("chat_id", String(chatId));
     if (caption) {
       form.append("caption", caption);
       form.append("parse_mode", "HTML");
     }
-    if (title) form.append("title", title);
     form.append(
-      "audio",
+      "document",
       new Blob([mp3Bytes], { type: "audio/mpeg" }),
       "pron.mp3",
     );
 
-    const res = await fetch(`${this.base}/sendAudio`, {
+    const res = await fetch(`${this.base}/sendDocument`, {
       method: "POST",
       body: form,
     });
     const body = await res.json().catch(() => ({}));
     if (!body.ok) {
-      throw new Error(`sendAudio 실패: ${body.description || res.status}`);
+      throw new Error(`sendDocument 실패: ${body.description || res.status}`);
     }
     return body.result;
   }
