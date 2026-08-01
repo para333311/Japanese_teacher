@@ -106,6 +106,10 @@ jobs:
 
       # 배포 후 텔레그램 웹훅을 새 주소로 다시 걸어준다.
       # ADMIN_KEY 는 --data-urlencode 로 넘겨 특수문자가 있어도 안전하게 만든다.
+      #
+      # 방금 전 단계에서 올린 시크릿(ADMIN_KEY)이 워커에 반영되기까지
+      # Cloudflare 쪽에 짧은 전파 지연이 있어, 곧바로 호출하면 이전 값
+      # 기준으로 403(forbidden)이 날 수 있다. 그래서 몇 초 간격으로 재시도한다.
       - name: 웹훅 등록
         if: steps.publish.outputs.worker_url != ''
         env:
@@ -113,10 +117,18 @@ jobs:
           WORKER_URL: ${{ steps.publish.outputs.worker_url }}
         run: |
           set -euo pipefail
-          curl -sS --fail-with-body --max-time 60 -G \
-            --data-urlencode "key=$AK" \
-            "$WORKER_URL/setup"
-          echo
+          for attempt in 1 2 3 4 5; do
+            if curl -sS --fail-with-body --max-time 60 -G \
+                --data-urlencode "key=$AK" \
+                "$WORKER_URL/setup"; then
+              echo
+              exit 0
+            fi
+            echo "웹훅 등록 재시도 (${attempt}/5)..."
+            sleep 5
+          done
+          echo "::error::웹훅 등록이 재시도 후에도 실패했습니다."
+          exit 1
 
       - name: 배포 결과 요약
         if: always()
