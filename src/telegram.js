@@ -67,6 +67,39 @@ export class Telegram {
     return body.result;
   }
 
+  /**
+   * 발음 음성 전송.
+   *
+   * sendVoice(둥근 파형 말풍선)는 텔레그램 클라이언트가 한 채팅 안의
+   * 음성 메시지들을 하나의 재생목록으로 묶어, 중간 메시지를 눌러도
+   * 이어서 그 뒤의 메시지까지 자동 재생해버린다. sendAudio(일반 오디오
+   * 플레이어)는 이 자동 이어재생 대상이 아니라서 누른 것만 재생된다.
+   */
+  async sendAudio(chatId, mp3Bytes, { caption = "", title = "" } = {}) {
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    if (caption) {
+      form.append("caption", caption);
+      form.append("parse_mode", "HTML");
+    }
+    if (title) form.append("title", title);
+    form.append(
+      "audio",
+      new Blob([mp3Bytes], { type: "audio/mpeg" }),
+      "pron.mp3",
+    );
+
+    const res = await fetch(`${this.base}/sendAudio`, {
+      method: "POST",
+      body: form,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!body.ok) {
+      throw new Error(`sendAudio 실패: ${body.description || res.status}`);
+    }
+    return body.result;
+  }
+
   setWebhook(url, secretToken) {
     return this.call("setWebhook", {
       url,

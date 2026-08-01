@@ -1,0 +1,160 @@
+{
+  "meta": {
+    "version": 1,
+    "description": "한국과 일본이 같은 한자를 다르게 쓰는 단어 모음. 한자·발음·뜻 차이 학습용.",
+    "fields": {
+      "kanji": "일본어 한자 표기",
+      "jp": "일본어 읽기 (히라가나, 음성 생성용)",
+      "kr_read": "일본어 발음 한글 표기",
+      "ko_reading": "한국 한자음(독음)",
+      "ko_meaning": "한국에서 쓰이는 뜻",
+      "jp_meaning": "일본에서 쓰이는 뜻(뉘앙스 차이)"
+    }
+  },
+  "words": [
+    {
+      "kanji": "会計",
+      "jp": "かいけい",
+      "kr_read": "카이케이",
+      "ko_reading": "회계",
+      "ko_meaning": "자금 흐름을 기록하고 정리하는 것.",
+      "jp_meaning": "(상점에서 하는) '계산', '결제' 의미도 있음."
+    },
+    {
+      "kanji": "割愛",
+      "jp": "かつあい",
+      "kr_read": "카츠아이",
+      "ko_reading": "할애",
+      "ko_meaning": "(시간이나 노력을) 내어줌, 빼내어 씀.",
+      "jp_meaning": "(아쉽지만) 생략함, 빼버림, 버림."
+    },
+    {
+      "kanji": "真面目",
+      "jp": "まじめ",
+      "kr_read": "마지메",
+      "ko_reading": "진면목",
+      "ko_meaning": "(본래 갖고 있던, 숨겨져 있던) 진짜 모습.",
+      "jp_meaning": "성실함, 얌전함, 진지함."
+    },
+    {
+      "kanji": "気分",
+      "jp": "きぶん",
+      "kr_read": "키분",
+      "ko_reading": "기분",
+      "ko_meaning": "감정 상태, 심리 상태.",
+      "jp_meaning": "감정 상태 + 신체 컨디션도 가능."
+    },
+    {
+      "kanji": "人参",
+      "jp": "にんじん",
+      "kr_read": "닌진",
+      "ko_reading": "인삼",
+      "ko_meaning": "인삼 (약재, 한반도의 오랜 특산품).",
+      "jp_meaning": "당근 (식재료)."
+    },
+    {
+      "kanji": "物件",
+      "jp": "ぶっけん",
+      "kr_read": "붓켄",
+      "ko_reading": "물건",
+      "ko_meaning": "(손에 들 수 있는) 물건 그 자체.",
+      "jp_meaning": "부동산 매물 (아파트, 방, 토지 등)."
+    },
+    {
+      "kanji": "愛人",
+      "jp": "あいじん",
+      "kr_read": "아이진",
+      "ko_reading": "애인",
+      "ko_meaning": "연인, 사랑하는 사람.",
+      "jp_meaning": "불륜 상대!"
+    },
+    {
+      "kanji": "放心",
+      "jp": "ほうしん",
+      "kr_read": "호우신",
+      "ko_reading": "방심",
+      "ko_meaning": "부주의함, 주의를 게을리 함.",
+      "jp_meaning": "넋을 잃음, 멍하니 있음."
+    },
+    {
+      "kanji": "独断",
+      "jp": "どくだん",
+      "kr_read": "도쿠단",
+      "ko_reading": "독단",
+      "ko_meaning": "혼자서 결정함 (다소 부정적 뉘앙스).",
+      "jp_meaning": "소신껏 판단함 (다소 긍정적 뉘앙스)."
+    },
+    {
+      "kanji": "工作",
+      "jp": "こうさく",
+      "kr_read": "코우사쿠",
+      "ko_reading": "공작",
+      "ko_meaning": "음모를 꾸밈 (비밀스럽고 어두운 일 뉘앙스).",
+      "jp_meaning": "가공, 만들기 (어두운 뉘앙스 X, 만들기 수업도 '공작')."
+    },
+    {
+      "kanji": "工夫",
+      "jp": "くふう",
+      "kr_read": "쿠후-",
+      "ko_reading": "공부",
+      "ko_meaning": "학습, 무언가 배우는 것.",
+      "jp_meaning": "아이디어를 냄, 고안함, 궁리함."
+    },
+    {
+      "kanji": "自慢",
+      "jp": "じまん",
+      "kr_read": "지만",
+      "ko_reading": "자만",
+      "ko_meaning": "자만, 자신감이 지나친 것 (부정적 뉘앙스).",
+      "jp_meaning": "자랑 (한국 의미보다 긍정적인 뉘앙스가 있음)."
+    },
+    {
+      "kanji": "適当",
+      "jp": "てきとう",
+      "kr_read": "테키토-",
+      "ko_reading": "적당",
+      "ko_meaning": "딱 알맞음, 과하거나 부족하지 않음.",
+      "jp_meaning": "딱 알맞음, 대충대충."
+    },
+    {
+      "kanji": "心術",
+      "jp": "しんじゅつ",
+      "kr_read": "신쥬츠",
+      "ko_reading": "심술",
+      "ko_meaning": "심술, 괴롭히거나 시기하는 것.",
+      "jp_meaning": "마음가짐, 마음씨, 성품."
+    },
+    {
+      "kanji": "旅館",
+      "jp": "りょかん",
+      "kr_read": "료칸",
+      "ko_reading": "여관",
+      "ko_meaning": "저가형 숙소.",
+      "jp_meaning": "일본 전식 숙소 (저렴하다는 이미지 X)."
+    },
+    {
+      "kanji": "多情",
+      "jp": "たじょう",
+      "kr_read": "타죠-",
+      "ko_reading": "다정",
+      "ko_meaning": "정이 많음, 따뜻하고 친절함.",
+      "jp_meaning": "바람기가 많음, 정을 쉽게 줌."
+    },
+    {
+      "kanji": "大丈夫",
+      "jp": "だいじょうぶ",
+      "kr_read": "다이죠-부",
+      "ko_reading": "대장부",
+      "ko_meaning": "건장하고 호탕한 사나이.",
+      "jp_meaning": "괜찮아, 문제 없어."
+    },
+    {
+      "kanji": "八方美人",
+      "jp": "はっぽうびじん",
+      "kr_read": "합뽀-비진",
+      "ko_reading": "팔방미인",
+      "ko_meaning": "이것 저것 잘하는 사람.",
+      "jp_meaning": "이리저리 눈치 보며 줏대 없는 사람."
+    }
+  ]
+}

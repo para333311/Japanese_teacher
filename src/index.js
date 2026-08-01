@@ -4,19 +4,21 @@
 //   fetch()     : 텔레그램 웹훅 수신 → 명령어 즉시 응답
 //   scheduled() : Cron 트리거 → 정기 발송
 
-import { formatHelp, formatLesson, formatStart, formatStats } from "./format.js";
+import { formatHelp, formatLesson, formatStart, formatStats, formatWord } from "./format.js";
 import {
   addSubscriber,
   getProgress,
+  getWordProgress,
   listSubscribers,
-  pickNext,
-  pickRandom,
+  pickNextContent,
+  pickRandomContent,
   removeSubscriber,
   resetProgress,
 } from "./store.js";
 import { Telegram } from "./telegram.js";
 import { synthesizeJapanese } from "./tts.js";
 import { TOTAL } from "./phrases.js";
+import { WORD_TOTAL } from "./words.js";
 
 const COMMANDS = [
   { command: "now", description: "지금 바로 한 문장 받기" },
@@ -112,20 +114,24 @@ function inQuietHours(cfg, hour) {
 }
 
 // ------------------------------------------------------------------ 발송
-async function sendLesson(tg, cfg, chatId, phrase, progress) {
-  await tg.sendMessage(
-    chatId,
-    formatLesson(phrase, { showJapanese: cfg.showJapanese, progress }),
-  );
+
+/** 문장/단어 공통 발송. kind 에 따라 포맷과 발송 라벨만 갈린다. */
+async function sendContent(tg, cfg, chatId, kind, content, progress) {
+  const text =
+    kind === "word"
+      ? formatWord(content, { progress })
+      : formatLesson(content, { showJapanese: cfg.showJapanese, progress });
+  await tg.sendMessage(chatId, text);
 
   if (cfg.sendVoice) {
-    const mp3 = await synthesizeJapanese(phrase.jp, {
+    const mp3 = await synthesizeJapanese(content.jp, {
       rate: cfg.voiceRate,
       voice: cfg.voiceName,
     });
     if (mp3) {
+      const label = kind === "word" ? content.kanji : content.kr;
       try {
-        await tg.sendVoice(chatId, mp3, `🔊 ${phrase.kr}`);
+        await tg.sendAudio(chatId, mp3, { caption: `🔊 ${label}`, title: label });
       } catch (e) {
         console.warn(`음성 전송 실패(텍스트는 전송됨): ${e.message}`);
       }
@@ -151,13 +157,13 @@ async function broadcast(env, cfg, tg) {
     return { sent: 0, failed: 0 };
   }
 
-  const { phrase, progress } = await pickNext(env.DB);
+  const { kind, content, progress } = await pickNextContent(env.DB);
   let sent = 0;
   let failed = 0;
 
   for (const chatId of chatIds) {
     try {
-      await sendLesson(tg, cfg, chatId, phrase, progress);
+      await sendContent(tg, cfg, chatId, kind, content, progress);
       sent += 1;
     } catch (e) {
       failed += 1;
@@ -169,8 +175,9 @@ async function broadcast(env, cfg, tg) {
     }
   }
 
+  const label = kind === "word" ? content.kanji : content.kr;
   console.log(
-    `발송 완료: ${sent}명 성공, ${failed}명 실패 · ${phrase.kr} ` +
+    `발송 완료: ${sent}명 성공, ${failed}명 실패 · [${kind}] ${label} ` +
       `(${progress.done}/${progress.total}, ${progress.round}회차)`,
   );
   return { sent, failed };
@@ -190,27 +197,33 @@ async function handleCommand(env, cfg, tg, chatId, text) {
       const isNew = await addSubscriber(env.DB, chatId);
       await tg.sendMessage(chatId, formatStart(cfg.intervalHours));
       if (isNew) {
-        const { phrase, progress } = await pickNext(env.DB);
-        await sendLesson(tg, cfg, chatId, phrase, progress);
+        const { kind, content, progress } = await pickNextContent(env.DB);
+        await sendContent(tg, cfg, chatId, kind, content, progress);
       }
       break;
     }
     case "/now": {
       await addSubscriber(env.DB, chatId);
-      const { phrase, progress } = await pickNext(env.DB);
-      await sendLesson(tg, cfg, chatId, phrase, progress);
+      const { kind, content, progress } = await pickNextContent(env.DB);
+      await sendContent(tg, cfg, chatId, kind, content, progress);
       break;
     }
     case "/again": {
-      await sendLesson(tg, cfg, chatId, pickRandom(), null);
+      const { kind, content } = pickRandomContent();
+      await sendContent(tg, cfg, chatId, kind, content, null);
       break;
     }
     case "/stats": {
       await addSubscriber(env.DB, chatId);
-      const { round, seen } = await getProgress(env.DB);
+      const phrase = await getProgress(env.DB);
+      const word = await getWordProgress(env.DB);
       await tg.sendMessage(
         chatId,
-        formatStats(seen.size, TOTAL, round, cfg.intervalHours),
+        formatStats(
+          { done: phrase.seen.size, total: TOTAL, round: phrase.round },
+          { done: word.seen.size, total: WORD_TOTAL, round: word.round },
+          cfg.intervalHours,
+        ),
       );
       break;
     }
@@ -389,11 +402,12 @@ export default {
 
     if (url.pathname === "/status") {
       if (!isAdmin) return new Response("forbidden", { status: 403 });
-      const [me, hook, subs, prog] = await Promise.all([
+      const [me, hook, subs, prog, wordProg] = await Promise.all([
         tg.getMe(),
         tg.getWebhookInfo(),
         listSubscribers(env.DB),
         getProgress(env.DB),
+        getWordProgress(env.DB),
       ]);
       // 각 수신처가 채널인지 개인 대화인지 보여준다.
       // 채널로 옮긴 뒤 개인 알림이 남아 있는지 한눈에 확인하기 위함이다.
@@ -421,7 +435,7 @@ export default {
         last_error: hook.last_error_message || null,
         subscribers: subs.length,
         targets,
-        progress: `${prog.seen.size}/${TOTAL} (${prog.round}회차)`,
+        progress: `문장 ${prog.seen.size}/${TOTAL} (${prog.round}회차) · 단어 ${wordProg.seen.size}/${WORD_TOTAL} (${wordProg.round}회차)`,
         interval_hours: cfg.intervalHours,
         quiet: cfg.quietEnabled
           ? `${cfg.quietStart}시~${cfg.quietEnd}시`

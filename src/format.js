@@ -16,10 +16,10 @@ export function esc(text) {
  * 폰트에서 각각 백슬래시·회색 네모로 깨져 보였다. 그래서 막대 그래픽을
  * 버리고 어떤 폰트에서도 확실히 보이는 표현으로 바꾼다.
  */
-export function progressBar(done, total) {
+export function progressBar(done, total, unit = "문장") {
   if (!total || total <= 0) return "";
   const pct = Math.round((done / total) * 100);
-  return `${done}/${total}문장 (${pct}%)`;
+  return `${done}/${total}${unit} (${pct}%)`;
 }
 
 /**
@@ -67,6 +67,27 @@ export function formatLesson(p, { showJapanese = false, progress = null } = {}) 
   return L.join("\n");
 }
 
+/**
+ * 한자 단어 학습 메시지.
+ *
+ * 같은 한자라도 한국·일본에서 뜻이 달라지는 단어들(예: 会計, 人参)을
+ * 모아, 두 나라 의미를 나란히 대조해서 보여준다.
+ */
+export function formatWord(w, { progress = null } = {}) {
+  const L = [];
+  L.push("🈺 <b>한자 단어</b>", "");
+  L.push(`<b>${esc(w.kanji)}</b>`, "");
+  L.push(`🗣 ${esc(w.koReading)} / ${esc(w.kr)}`, "");
+  L.push(`🇰🇷 한국 — ${esc(w.koMeaning)}`);
+  L.push(`🇯🇵 일본 — ${esc(w.jpMeaning)}`);
+
+  if (progress) {
+    const { done, total, round } = progress;
+    L.push("", `📈 ${progressBar(done, total, "단어")} · ${round}회차`);
+  }
+  return L.join("\n");
+}
+
 export function formatHelp(intervalHours) {
   return [
     "🇯🇵 <b>생활 일본어 봇</b>",
@@ -96,13 +117,15 @@ export function formatStart(intervalHours) {
   ].join("\n");
 }
 
-export function formatStats(done, total, round, intervalHours) {
-  const pct = total ? Math.round((done / total) * 100) : 0;
+export function formatStats(phrase, word, intervalHours) {
+  const pPct = phrase.total ? Math.round((phrase.done / phrase.total) * 100) : 0;
+  const wPct = word.total ? Math.round((word.done / word.total) * 100) : 0;
   return [
     "📊 <b>학습 진도</b>",
     "",
-    `이번 회차: <b>${done}</b> / ${total} 문장 (${pct}%)`,
-    `현재 회차: <b>${round}</b>회차`,
+    `🗣 문장: <b>${phrase.done}</b> / ${phrase.total} (${pPct}%) · ${phrase.round}회차`,
+    `🈺 단어: <b>${word.done}</b> / ${word.total} (${wPct}%) · ${word.round}회차`,
+    "",
     `발송 주기: ${intervalHours}시간마다`,
   ].join("\n");
 }
