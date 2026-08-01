@@ -49,6 +49,27 @@ jobs:
             exit 1
           fi
 
+      # GitHub Secrets 는 복사-붙여넣기로 등록하는 경우가 많아 끝에 개행이나
+      # 공백이 섞여 들어가기 쉽다. 남아 있으면 텔레그램 API URL 이 깨지거나
+      # (curl 오류 3), Cloudflare 에 저장되는 값과 실제 비교하는 값이 미묘하게
+      # 달라져 인증이 어긋난다(403). 여기서 한 번만 정리해 이후 모든 단계가
+      # 같은 이름(CLOUDFLARE_API_TOKEN 등)으로 깨끗한 값을 쓰게 한다.
+      - name: 시크릿 공백 제거
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          WH: ${{ secrets.WEBHOOK_SECRET }}
+          AK: ${{ secrets.ADMIN_KEY }}
+        run: |
+          set -euo pipefail
+          trim() { printf '%s' "$1" | tr -d '\r\n'; }
+          {
+            echo "CLOUDFLARE_API_TOKEN=$(trim "$CF")"
+            echo "TELEGRAM_BOT_TOKEN=$(trim "$TG")"
+            echo "WEBHOOK_SECRET=$(trim "$WH")"
+            echo "ADMIN_KEY=$(trim "$AK")"
+          } >> "$GITHUB_ENV"
+
       # D1 데이터베이스가 없으면 만들고, 있으면 그대로 쓴다.
       # 어느 쪽이든 실제 database_id 를 찾아 wrangler.jsonc 에 채워 넣는다.
       - name: D1 데이터베이스 준비
@@ -95,9 +116,9 @@ jobs:
       # 시크릿은 재배포 없이 즉시 반영된다.
       - name: Worker 시크릿 등록
         env:
-          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          WH: ${{ secrets.WEBHOOK_SECRET }}
-          AK: ${{ secrets.ADMIN_KEY }}
+          TG: ${{ env.TELEGRAM_BOT_TOKEN }}
+          WH: ${{ env.WEBHOOK_SECRET }}
+          AK: ${{ env.ADMIN_KEY }}
         run: |
           set -euo pipefail
           printf '%s' "$TG" | npx wrangler secret put TELEGRAM_BOT_TOKEN
@@ -106,16 +127,14 @@ jobs:
 
       # 배포 후 텔레그램 웹훅을 새 주소로 다시 걸어준다.
       #
-      # 우리 워커의 /setup(ADMIN_KEY 로 보호됨)을 거치지 않고 텔레그램
-      # API 를 CI 에서 직접 호출한다. 방금 전 단계에서 올린 ADMIN_KEY 가
-      # 워커에 반영되기까지 Cloudflare 쪽에 전파 지연이 있어서, 곧바로
-      # /setup 을 부르면 이전 값 기준으로 403 이 나는 경우가 있었다.
-      # TELEGRAM_BOT_TOKEN 은 이번에 새로 바뀌는 값이 아니라 이 문제가 없다.
+      # 우리 워커의 /setup(ADMIN_KEY 로 보호됨)을 거치는 대신 텔레그램
+      # API 를 CI 에서 직접 호출한다. 방금 올린 ADMIN_KEY 가 워커에 실제
+      # 반영됐는지에 기대지 않아도 되므로 그 경로의 변수 하나를 없앤다.
       - name: 웹훅 등록
         if: steps.publish.outputs.worker_url != ''
         env:
-          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          WH: ${{ secrets.WEBHOOK_SECRET }}
+          TG: ${{ env.TELEGRAM_BOT_TOKEN }}
+          WH: ${{ env.WEBHOOK_SECRET }}
           WORKER_URL: ${{ steps.publish.outputs.worker_url }}
         run: |
           set -euo pipefail
