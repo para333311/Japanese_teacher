@@ -163,3 +163,53 @@ export async function resetProgress(db) {
     .prepare("UPDATE progress SET round = 1, seen = '[]' WHERE id IN (1, 2)")
     .run();
 }
+
+// ------------------------------------------------------------ 마지막 발송
+//
+// 집 PC 의 예약작업(scripts/daily_clip.py)이 /today 로 읽어, 방금 나간 문장·단어가
+// 실제로 들리는 유튜브 클립을 찾아 영상으로 뒤따라 보낸다.
+
+export async function saveLastSent(db, kind, content) {
+  await db
+    .prepare(
+      "INSERT INTO last_sent (id, kind, content_json, sent_at) " +
+        "VALUES (1, ?, ?, datetime('now')) " +
+        "ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, " +
+        "content_json = excluded.content_json, sent_at = excluded.sent_at",
+    )
+    .bind(kind, JSON.stringify(content))
+    .run();
+}
+
+export async function getLastSent(db) {
+  const row = await db
+    .prepare(
+      "SELECT l.kind, l.content_json, l.sent_at, c.clip_at " +
+        "FROM last_sent l LEFT JOIN clip_sent c " +
+        "ON c.id = 1 AND c.for_sent_at = l.sent_at WHERE l.id = 1",
+    )
+    .first();
+  if (!row) return null;
+  try {
+    return {
+      kind: row.kind,
+      content: JSON.parse(row.content_json),
+      sent_at: row.sent_at,
+      clip_at: row.clip_at || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 오늘 것의 클립 영상(또는 못 찾았다는 알림)이 나갔다고 표시한다. */
+export async function markClipDone(db) {
+  await db
+    .prepare(
+      "INSERT INTO clip_sent (id, for_sent_at, clip_at) " +
+        "SELECT 1, sent_at, datetime('now') FROM last_sent WHERE id = 1 " +
+        "ON CONFLICT(id) DO UPDATE SET for_sent_at = excluded.for_sent_at, " +
+        "clip_at = excluded.clip_at",
+    )
+    .run();
+}
