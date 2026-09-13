@@ -51,7 +51,7 @@ import urllib.request
 WORKER = os.environ.get(
     "WORKER_URL", "https://japanese-teacher-bot.imissyou55aa.workers.dev"
 ).rstrip("/")
-SEARCH_CANDIDATES = 8    # 검색 결과에서 자막을 확인할 영상 수 (많으면 429)
+SEARCH_CANDIDATES = 14   # 검색 결과에서 자막을 확인할 영상 수 (많으면 429) — 2026-09-14 파라님 "후보수늘려", 8→14
 SUB_DELAY = 2.0          # 자막 요청 사이 쉬는 시간(초). 유튜브 429 완화
 MAX_VIDEO_MINUTES = 90   # 이보다 긴 영상은 건너뛴다 (생방송·통합본 배제)
 PAD_BEFORE = 1.5         # 대사 앞 여유(초)
