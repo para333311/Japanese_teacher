@@ -7,8 +7,6 @@
 import { cycleText, formatHelp, formatLesson, formatStart, formatStats, formatWord } from "./format.js";
 import {
   addSubscriber,
-  getLastSent,
-  markClipDone,
   getProgress,
   getWordProgress,
   listSubscribers,
@@ -16,7 +14,6 @@ import {
   pickRandomContent,
   removeSubscriber,
   resetProgress,
-  saveLastSent,
 } from "./store.js";
 import { Telegram } from "./telegram.js";
 import { synthesizeJapanese } from "./tts.js";
@@ -175,15 +172,6 @@ async function broadcast(env, cfg, tg) {
         await removeSubscriber(env.DB, chatId);
         console.log(`더 이상 보낼 수 없어 구독 해제: ${chatId}`);
       }
-    }
-  }
-
-  // 클립 검색(scripts/daily_clip.py)이 /today 로 읽어가도록 방금 나간 것을 남긴다.
-  if (sent > 0) {
-    try {
-      await saveLastSent(env.DB, kind, content);
-    } catch (e) {
-      console.warn("마지막 발송 기록 실패(발송은 됐음):", e.message);
     }
   }
 
@@ -412,46 +400,7 @@ export default {
       });
     }
 
-    // 오늘 나간 카드. 집 PC 의 scripts/daily_clip.py 가 읽어
-    // 그 말이 실제로 들리는 유튜브 클립을 찾아 영상으로 뒤따라 보낸다.
-    if (url.pathname === "/today") {
-      if (!isAdmin) return new Response("forbidden", { status: 403 });
-      const [last, subs] = await Promise.all([
-        getLastSent(env.DB),
-        listSubscribers(env.DB),
-      ]);
-      if (!last) return Response.json({ ok: false, reason: "발송 기록 없음" });
-      return Response.json({ ok: true, ...last, targets: subs });
-    }
-
-    // 집 PC(scripts/daily_clip.py)가 찾아 잘라 온 클립을 구독자 전원에게 보낸다.
-    // 유튜브가 GitHub 러너 IP 를 봇으로 막아 클립 작업은 집 PC 에서 돌고,
-    // 봇 토큰은 여기만 갖고 있으니 전송은 워커가 맡는다.
-    //   multipart: video(mp4, 선택) · caption · text(영상 없을 때 보낼 한 줄)
-    // 보내고 나면 오늘 것 처리됨(clip_sent)으로 표시해 두 번 보내지 않는다.
-    if (url.pathname === "/clip" && request.method === "POST") {
-      if (!isAdmin) return new Response("forbidden", { status: 403 });
-      const form = await request.formData();
-      const video = form.get("video");
-      const caption = String(form.get("caption") || "");
-      const text = String(form.get("text") || "");
-      const bytes = video && typeof video !== "string" ? await video.arrayBuffer() : null;
-      if (!bytes && !text) return Response.json({ ok: false, reason: "video 또는 text 필요" });
-      const subs = await listSubscribers(env.DB);
-      let sent = 0;
-      const errors = [];
-      for (const chatId of subs) {
-        try {
-          if (bytes) await tg.sendVideo(chatId, bytes, { caption });
-          else await tg.sendMessage(chatId, text);
-          sent += 1;
-        } catch (e) {
-          errors.push(`${chatId}: ${e.message}`);
-        }
-      }
-      if (sent > 0) await markClipDone(env.DB);
-      return Response.json({ ok: sent > 0, sent, errors });
-    }
+    // (2026-09-26) /today·/clip — 집 PC 가 유튜브 클립을 찾아 보내던 길은 폐지했다(파라님 「영상 찾는 거는 폐지, 다시 mp3 로」).
 
     if (url.pathname === "/status") {
       if (!isAdmin) return new Response("forbidden", { status: 403 });
